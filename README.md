@@ -50,17 +50,3 @@ NutriScan is built using modern and robust technologies to ensure high performan
 - **[Image Picker](https://pub.dev/packages/image_picker)**: Allowing users to seamlessly access their camera and gallery for the Snap & Track AI feature.
 - **[HTTP](https://pub.dev/packages/http)**: Handling reliable network requests to external AI Vision APIs for food recognition.
 
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Flutter SDK (`>=3.1.0`)
-- Firebase project configured with Google Sign-In enabled.
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone [https://github.com/yourusername/nutriscan.git](https://github.com/yourusername/nutriscan.git)
-   cd nutriscan
