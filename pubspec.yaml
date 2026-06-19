@@ -1,0 +1,57 @@
+name: calorie_tracker_app
+description: NutriScan — AI-powered Calorie Tracking App with Indian food database.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- State Management ---
+  provider: ^6.1.2
+
+  # --- Image Picking ---
+  image_picker: ^1.2.2
+
+  # --- HTTP (for future real API calls) ---
+  http: ^1.2.1
+
+  # --- Local Storage ---
+  shared_preferences: ^2.5.5
+
+  # --- Charts (fl_chart for analytics dashboard) ---
+  fl_chart: ^1.2.0
+
+  # --- Progress Indicators ---
+  percent_indicator: ^4.2.3
+
+  # --- Date Formatting ---
+  intl: ^0.20.2
+
+  # --- Google Fonts for premium typography ---
+  google_fonts: ^8.1.0
+
+  # --- UUID generation for unique food item IDs ---
+  uuid: ^4.3.3
+
+  # --- Smooth page indicator for onboarding ---
+  smooth_page_indicator: ^1.2.0+3
+
+  # --- Material Design Icons ---
+  cupertino_icons: ^1.0.6
+  
+  device_preview: ^1.1.1
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.3
+  google_sign_in: ^7.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
