@@ -16,8 +16,11 @@ dependencies:
   # --- Image Picking ---
   image_picker: ^1.2.2
 
-  # --- HTTP (for future real API calls) ---
+  # --- HTTP (for API calls) ---
   http: ^1.2.1
+
+  # --- Google Gemini AI (Vision API for food analysis) ---
+  google_generative_ai: ^0.4.6
 
   # --- Local Storage ---
   shared_preferences: ^2.5.5

@@ -1,28 +1,41 @@
 // =============================================================================
 // services/ai_api_service.dart
 // =============================================================================
-// AI Vision API integration stub with comprehensive Indian food database.
+// AI Vision API integration using Google Gemini for food image analysis.
 //
-// In production, replace analyzeImage() with a real call to:
-//   - Google Gemini Vision API (google_generative_ai package)
-//   - OpenAI Vision API (via http package)
+// Uses the `google_generative_ai` package to send food photos to
+// Gemini's vision model and get back nutritional information.
 //
 // The local food database provides offline-first search with 35+ Indian foods.
 // =============================================================================
 
-import 'dart:math';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+import '../config/api_keys.dart';
 
 /// Service for AI-powered food analysis and database search.
 ///
-/// Currently uses mock data for offline demo. Replace [analyzeImage] with
-/// real API calls when ready for production.
+/// Uses Google Gemini Vision API for image analysis and a local
+/// database for food search.
 class AIAnalysisService {
   // Singleton
   static final AIAnalysisService _instance = AIAnalysisService._internal();
   factory AIAnalysisService() => _instance;
   AIAnalysisService._internal();
 
-  final Random _random = Random();
+  /// Lazily initialized Gemini model.
+  GenerativeModel? _model;
+
+  GenerativeModel get _geminiModel {
+    _model ??= GenerativeModel(
+      model: 'gemini-2.0-flash',
+      apiKey: ApiKeys.geminiApiKey,
+    );
+    return _model!;
+  }
 
   // ---------------------------------------------------------------------------
   // Indian Food Database (35+ items with accurate macros)
@@ -91,46 +104,90 @@ class AIAnalysisService {
     {'name': 'Protein Shake', 'icon': '🥤', 'quantity': '1 glass', 'calories': 200, 'protein': 25.0, 'carbs': 15.0, 'fats': 4.0, 'isIndian': false, 'category': 'beverage'},
   ];
 
-  // Mock AI analysis results (rotated randomly)
-  static final List<Map<String, dynamic>> _mockAnalysisResults = [
-    {'name': 'Paneer Tikka with Mint Chutney', 'calories': 320, 'protein': 18.0, 'carbs': 12.0, 'fats': 22.0},
-    {'name': 'Chicken Biryani (1 plate)', 'calories': 550, 'protein': 28.0, 'carbs': 62.0, 'fats': 18.0},
-    {'name': 'Masala Dosa with Sambar', 'calories': 350, 'protein': 10.0, 'carbs': 52.0, 'fats': 12.0},
-    {'name': 'Palak Paneer with 2 Roti', 'calories': 530, 'protein': 22.0, 'carbs': 50.0, 'fats': 28.0},
-    {'name': 'Chole Bhature', 'calories': 540, 'protein': 19.0, 'carbs': 75.0, 'fats': 20.0},
-    {'name': 'Idli (3 pcs) with Chutney', 'calories': 210, 'protein': 6.0, 'carbs': 40.0, 'fats': 2.0},
-    {'name': 'Mixed Veg Curry with Rice', 'calories': 420, 'protein': 12.0, 'carbs': 58.0, 'fats': 14.0},
-    {'name': 'Dal Fry with Jeera Rice', 'calories': 410, 'protein': 17.0, 'carbs': 68.0, 'fats': 9.0},
-  ];
-
   // ---------------------------------------------------------------------------
-  // AI Image Analysis (Mock)
+  // AI Image Analysis (Gemini Vision)
   // ---------------------------------------------------------------------------
 
-  /// Simulates AI-powered food image analysis.
+  /// The prompt sent to Gemini to analyze food images.
+  static const String _analysisPrompt = '''
+Analyze this food image and identify the food items visible.
+Provide your response as a valid JSON object with these exact keys:
+{
+  "name": "Name of the food (include quantity if visible, e.g. '2 Roti with Dal')",
+  "calories": <total estimated calories as a number>,
+  "protein": <grams of protein as a number>,
+  "carbs": <grams of carbohydrates as a number>,
+  "fats": <grams of fat as a number>
+}
+
+Rules:
+- If multiple food items are visible, combine them into one entry with totals.
+- Use realistic nutritional estimates based on standard serving sizes.
+- For Indian foods, use typical restaurant/homemade portion sizes.
+- Return ONLY the JSON object, no markdown, no explanation, no code fences.
+''';
+
+  /// Analyzes a food image using Gemini Vision API.
   ///
-  /// In production, replace with a real Gemini Vision API call:
-  /// ```dart
-  /// final model = GenerativeModel(model: 'gemini-pro-vision', apiKey: apiKey);
-  /// final response = await model.generateContent([
-  ///   Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)])
-  /// ]);
-  /// ```
-  Future<Map<String, dynamic>> analyzeImage(String imagePath) async {
-    // Simulate AI processing delay
-    await Future.delayed(const Duration(seconds: 2));
+  /// Accepts [imageBytes] (the raw image data) and [mimeType] (e.g. 'image/jpeg').
+  /// This works on all platforms including Flutter Web.
+  ///
+  /// Returns a Map with keys: name, calories, protein, carbs, fats, confidence.
+  /// Throws an exception if the API call fails or the response can't be parsed.
+  Future<Map<String, dynamic>> analyzeImage(Uint8List imageBytes, {String mimeType = 'image/jpeg'}) async {
+    // Validate API key
+    if (ApiKeys.geminiApiKey == 'PASTE_YOUR_GEMINI_API_KEY_HERE' ||
+        ApiKeys.geminiApiKey.isEmpty) {
+      throw Exception(
+        'Gemini API key not configured. '
+        'Open lib/config/api_keys.dart and paste your key.',
+      );
+    }
 
-    // Pick a random mock result
-    final result = _mockAnalysisResults[_random.nextInt(_mockAnalysisResults.length)];
+    // Send to Gemini Vision
+    final content = Content.multi([
+      TextPart(_analysisPrompt),
+      DataPart(mimeType, imageBytes),
+    ]);
+
+    final response = await _geminiModel.generateContent([content]);
+    final responseText = response.text;
+
+    if (responseText == null || responseText.isEmpty) {
+      throw Exception('Gemini returned an empty response.');
+    }
+
+    // Parse JSON from response (strip any accidental markdown fences)
+    final cleaned = responseText
+        .replaceAll(RegExp(r'```json\s*'), '')
+        .replaceAll(RegExp(r'```\s*'), '')
+        .trim();
+
+    Map<String, dynamic> parsed;
+    try {
+      parsed = jsonDecode(cleaned) as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception(
+        'Failed to parse Gemini response as JSON.\n'
+        'Raw response: $responseText',
+      );
+    }
+
+    // Validate required fields exist
+    final requiredKeys = ['name', 'calories', 'protein', 'carbs', 'fats'];
+    for (final key in requiredKeys) {
+      if (!parsed.containsKey(key)) {
+        throw Exception('Gemini response missing required field: "$key"');
+      }
+    }
 
     return {
-      'name': result['name'],
-      'calories': result['calories'],
-      'protein': result['protein'],
-      'carbs': result['carbs'],
-      'fats': result['fats'],
-      'confidence': 0.87 + _random.nextDouble() * 0.10,
-      'imagePath': imagePath,
+      'name': parsed['name'] as String,
+      'calories': (parsed['calories'] as num).toDouble(),
+      'protein': (parsed['protein'] as num).toDouble(),
+      'carbs': (parsed['carbs'] as num).toDouble(),
+      'fats': (parsed['fats'] as num).toDouble(),
+      'confidence': 0.92, // Gemini doesn't return confidence; use a fixed value
     };
   }
 

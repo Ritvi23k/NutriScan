@@ -5,7 +5,8 @@
 // FLOW: Pick image → Auto-analyze → Show results → Add to log.
 // =============================================================================
 
-import 'dart:io';
+
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +14,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/calorie_provider.dart';
 import '../services/ai_api_service.dart';
 import '../theme/app_theme.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class CameraUploadScreen extends StatefulWidget {
   const CameraUploadScreen({super.key});
@@ -125,7 +125,19 @@ class _CameraUploadScreenState extends State<CameraUploadScreen>
     if (mounted) context.read<CalorieProvider>().setAnalyzing(true);
 
     try {
-      final result = await _aiService.analyzeImage(_pickedImage!.path);
+      // Read image bytes from XFile (works on web + mobile)
+      final imageBytes = await _pickedImage!.readAsBytes();
+
+      // Determine MIME type from file name
+      final ext = _pickedImage!.name.split('.').last.toLowerCase();
+      final mimeType = switch (ext) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        _ => 'image/jpeg',
+      };
+
+      final result = await _aiService.analyzeImage(imageBytes, mimeType: mimeType);
       if (mounted) {
         setState(() {
           _analysisResult = result;
@@ -233,9 +245,15 @@ class _CameraUploadScreenState extends State<CameraUploadScreen>
           fit: StackFit.expand,
           children: [
             _pickedImage != null
-                ? (kIsWeb
-                    ? Image.network(_pickedImage!.path, fit: BoxFit.cover)
-                    : Image.file(File(_pickedImage!.path), fit: BoxFit.cover))
+                ? FutureBuilder<Uint8List>(
+                    future: _pickedImage!.readAsBytes(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                      }
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                  )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
